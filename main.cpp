@@ -33,6 +33,8 @@ const char *host_name = MBED_CONF_APP_ECHO_SERVER_HOSTNAME;
 // Echo server port (same for TCP and UDP)
 const int port = MBED_CONF_APP_ECHO_SERVER_PORT;
 
+bool flag = false;
+
 static rtos::Mutex trace_mutex;
 
 #if MBED_CONF_MBED_TRACE_ENABLE
@@ -162,8 +164,8 @@ nsapi_error_t test_send_recv()
 
     sock.set_timeout(15000);
     int n = 0;
-    const char *echo_string = "TEST";
-    char recv_buf[4];
+    const char *echo_string = "ABCDEFGHIJABCDEFGHIJABCDEFGHIJABCDEFGHIJABCDEFGHIJABCDEFGHIJABCDEFGHIJABCDEFGHIJABCDEFGHIJABCDEFGHIJ";
+    char recv_buf[100];
 #if MBED_CONF_APP_SOCK_TYPE == TCP
     retcode = sock.connect(sock_addr);
     if (retcode < 0) {
@@ -204,6 +206,33 @@ nsapi_error_t test_send_recv()
     return -1;
 }
 
+static void network_callback(nsapi_event_t ev, intptr_t ptr)
+{
+    if (ev == NSAPI_EVENT_CONNECTION_STATUS_CHANGE && ptr == NSAPI_STATUS_GLOBAL_UP) {
+        print_function("\n\nConnected\n\n");
+        flag = true;
+    }
+}
+
+#if 0
+int main()
+{
+
+   // iface.modem_debug_on(MBED_CONF_APP_MODEM_TRACE);
+
+    print_function("\n\nUART Test\n");
+    Serial pc(USBTX, USBRX, MBED_CONF_PLATFORM_STDIO_BAUD_RATE);
+    Serial bc95(MDMTXD, MDMRXD, MBED_CONF_PLATFORM_DEFAULT_SERIAL_BAUD_RATE);
+    while(1) {
+        if(pc.readable()) {
+            bc95.putc(pc.getc());
+        }
+        if(bc95.readable()) {
+            pc.putc(bc95.getc());
+        }
+    }
+}
+#else
 int main()
 {
     print_function("\n\nmbed-os-example-cellular\n");
@@ -226,19 +255,64 @@ int main()
     nsapi_error_t retcode = NSAPI_ERROR_NO_CONNECTION;
 
     /* Attempt to connect to a cellular network */
-    if (do_connect() == NSAPI_ERROR_OK) {
-        retcode = test_send_recv();
+//    if (do_connect() == NSAPI_ERROR_OK) {
+//        retcode = test_send_recv();
+//    }
+//
+//    if (iface->disconnect() != NSAPI_ERROR_OK) {
+//        print_function("\n\n disconnect failed.\n\n");
+//    }
+//
+//    if (retcode == NSAPI_ERROR_OK) {
+//        print_function("\n\nSuccess. Exiting \n\n");
+//    } else {
+//        print_function("\n\nFailure. Exiting \n\n");
+//    }
+
+    iface->set_blocking(false);
+    iface->attach(callback(&network_callback));
+
+    for (uint8_t i = 0; i < 50; i++) {
+
+        print_function("\nConnecting...\n\n");
+        flag = false;
+        iface->connect();
+
+        while (flag == false) {
+            wait_ms(10);
+        }
+
+        wait(5);
+
+        print_function("\n\nDisconnecting...\n\n");
+        iface->disconnect();
+        print_function("\n\nDone disconnecting! (%d)\n", iface->get_connection_status());
+
+        wait(20);
     }
 
-    if (iface->disconnect() != NSAPI_ERROR_OK) {
-        print_function("\n\n disconnect failed.\n\n");
-    }
-
-    if (retcode == NSAPI_ERROR_OK) {
-        print_function("\n\nSuccess. Exiting \n\n");
-    } else {
-        print_function("\n\nFailure. Exiting \n\n");
-    }
+//    for (uint8_t i = 0; i < 50; i++) {
+//        print_function("\nConnecting...\n\n");
+//        nsapi_error_t err = iface->connect();
+//        nsapi_connection_status_t st = iface->get_connection_status();
+//        if (err == NSAPI_ERROR_OK && st == NSAPI_STATUS_GLOBAL_UP) {
+//            print_function("\n\nConnected to network: %s\n", iface->get_ip_address());
+//        } else {
+//           print_function("\n\nDidnt connect error(%d) status(%d)\n", err, st);
+//        }
+//
+//
+//        wait(5);
+//
+//
+//        print_function("\n\nDisconnecting...\n\n");
+//        iface->disconnect();
+//        print_function("\n\nDone disconnecting! (%d)\n", iface->get_connection_status());
+//
+//
+//        wait(20);
+//        print_function("\n\n\n\n\n");
+//    }
 
 #if MBED_CONF_MBED_TRACE_ENABLE
     trace_close();
@@ -248,4 +322,5 @@ int main()
 
     return 0;
 }
+#endif
 // EOF
