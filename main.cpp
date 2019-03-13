@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+#if 0
 #include "mbed.h"
 #include "common_functions.h"
 #include "CellularNonIPSocket.h"
@@ -287,3 +287,81 @@ int main()
     return 0;
 }
 // EOF
+#else
+
+#include "mbed.h"
+#include "ATHandler.h"
+#include "Thread.h"
+#include "EventQueue.h"
+#include "Callback.h"
+#include <string>
+#include <algorithm>
+#include <array>
+
+class TestFileHandle : public mbed::FileHandle
+{
+public:
+TestFileHandle() : _count
+
+{ 0 }
+{ }
+
+virtual ssize_t read(void *buffer, size_t size) override
+{
+if(_count >= ARRAY_SIZE)
+
+{ return 0; }
+const char *part = _parts[_count];
+const size_t len = strlen(part);
+memcpy(buffer, part, len);
+++_count;
+return len;
+}
+
+virtual ssize_t write(const void *buffer, size_t size) override
+
+{ return size; }
+virtual off_t seek(off_t offset, int whence = SEEK_SET) override
+
+{ return offset; }
+virtual int close() override
+
+{ return 0; }
+private:
+uint16_t _count;
+static const size_t ARRAY_SIZE = 3;
+static std::array<const char*, ARRAY_SIZE> _parts;
+};
+
+std::array<const char*, TestFileHandle::ARRAY_SIZE> TestFileHandle::_parts =
+
+{ "\r\n3G:\r\n10588,428", "\r\n", "OK\r\n" }
+;
+
+int main()
+{
+events::EventQueue q;
+TestFileHandle fh;
+ATHandler at(&fh, q, 1000, "\r");
+at.cmd_start("");
+at.cmd_stop();
+at.resp_start();
+char string[500];
+//const int number = at.read_string(string, 200);
+//printf("Length: %d\r\n", number);
+//printf("String: %s\r\n", string);
+//at.use_delimiter(false);
+int number = at.read_string(string, 200);
+while(number && (number != -1)){
+    printf("\r\nLength: %d\r\n", number);
+    printf("\r\nString: %s\r\n", string);
+    number = at.read_string(string, 200);
+}
+
+//while(at.info_resp())
+//
+//{ const int number = at.read_int(); printf("Number: %d\r\n", number); }
+at.resp_stop();
+while(1);
+}
+#endif
